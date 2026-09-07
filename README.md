@@ -26,9 +26,11 @@ same thing:
 Names are file names under `resourcepacks/` (a `.zip` or a folder), not
 paths. On every launch the listed packs are selected and marked as kept:
 the pack screen shows them as *(kept on by the modpack)* and does not let
-them be switched off. Anything the player adds themselves stays on top of
-them. A listed pack that is not there is named in the log and skipped; a
-file that is not a pack (no `pack.mcmeta`) likewise.
+them be switched off or moved. Anything the player adds themselves stays
+on top of them. A listed pack that says it is for another game version is
+kept on all the same -- listing it is the modpack's acceptance. A listed
+pack that is not there is named in the log and skipped; a file that is not
+a pack (no `pack.mcmeta`) likewise.
 
 If the config file is missing the mod writes an empty one and keeps
 nothing on.
@@ -42,11 +44,12 @@ options, are yours.
 
 The game discovers the packs in `resourcepacks/` itself and lists them as
 optional. When it asks mods for more packs, Pack Keeper hands it the
-listed ones again under the same ids, marked *required* -- the later
-source wins, so each pack appears once, and a required pack is always
-selected. Then it puts the saved pack list in the modpack's order, which
-the game reads right after. The reasoning, with the alternatives, is in
-`knowledge/decisions/D-0001.md`.
+listed ones again under the same ids, marked *required* and *fixed* --
+the later source wins, so each pack appears once; a required pack is
+always selected; a fixed one keeps its place beneath whatever the game
+adds later. Then it puts the saved pack list in the modpack's order,
+which the game reads right after. The reasoning, with the alternatives,
+is in `knowledge/decisions/`.
 
 ## Building and checking
 
@@ -59,6 +62,12 @@ what the game selected, that the top kept pack is what paints the dirt
 texture, that the player's pack stays on top, and that the kept packs
 appear once. It needs a display; `-PskipBooth` leaves it out. The booth's
 photo of the pack screen lands in `run/booth/screenshots/`.
+
+`./gradlew runPackTrial` boots whatever is laid out in `run/trial` (a real
+modpack's `resourcepacks/` and `config/packkeeper.json`, as a launcher
+would install them) and checks that every listed pack is selected, in
+order, and required. It is how a modpack's list is checked before it
+ships.
 
 ## License
 

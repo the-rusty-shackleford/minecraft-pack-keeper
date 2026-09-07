@@ -68,11 +68,11 @@ var prepareBooth = tasks.register("prepareBooth") {
             def g = image.createGraphics(); g.color = colour; g.fillRect(0, 0, 16, 16); g.dispose()
             def out = new ByteArrayOutputStream(); javax.imageio.ImageIO.write(image, 'png', out); out.toByteArray()
         }
-        def mcmeta = { String name -> """{ "pack": { "pack_format": 34, "description": "${name}" } }""" }
-        def folderPack = { String name, String texture, java.awt.Color colour ->
+        def mcmeta = { String name, int format = 34 -> """{ "pack": { "pack_format": ${format}, "description": "${name}" } }""" }
+        def folderPack = { String name, String texture, java.awt.Color colour, int format = 34 ->
             def dir = new File(booth, "resourcepacks/${name}/assets/minecraft/textures/block"); dir.mkdirs()
             new File(dir, "${texture}.png").bytes = png(colour)
-            new File(booth, "resourcepacks/${name}/pack.mcmeta").text = mcmeta(name)
+            new File(booth, "resourcepacks/${name}/pack.mcmeta").text = mcmeta(name, format)
         }
         def zipPack = { String name, String texture, java.awt.Color colour ->
             def file = new File(booth, "resourcepacks/${name}"); file.parentFile.mkdirs()
@@ -82,11 +82,12 @@ var prepareBooth = tasks.register("prepareBooth") {
             }
         }
         new File(booth, 'resourcepacks').deleteDir()
+        folderPack('keeper-old', 'sand', java.awt.Color.YELLOW, 15) // lowest, and for an old game version: the game would drop and re-add it on top
         folderPack('keeper-base', 'dirt', java.awt.Color.BLUE)     // under: paints dirt blue
         zipPack('keeper-top.zip', 'dirt', java.awt.Color.RED)      // on top: paints dirt red, and must win
         folderPack('mine', 'stone', java.awt.Color.GREEN)          // the player's own, above both
         new File(booth, 'config').mkdirs()
-        new File(booth, 'config/packkeeper.json').text = '{ "resource_packs": [ "keeper-top.zip", "keeper-base", "keeper-absent.zip" ] }\n'
+        new File(booth, 'config/packkeeper.json').text = '{ "resource_packs": [ "keeper-top.zip", "keeper-base", "keeper-old", "keeper-absent.zip" ] }\n'
         new File(booth, 'options.txt').text = 'resourcePacks:["vanilla","mod_resources","file/mine","file/keeper-top.zip","file/keeper-base"]\n'
         new File(booth, 'screenshots').deleteDir()
     }
@@ -119,6 +120,20 @@ neoForge {
             systemProperty 'packkeeper.photobooth', 'true'
             taskBefore prepareBooth
         }
+        // A real modpack's trial: lay a pack's mods, config and resource
+        // packs out in run/trial as a launcher would (without this mod's
+        // own jar -- the classpath provides it), and the run boots the
+        // whole pack to the title screen, checks that every pack listed in
+        // config/packkeeper.json is selected in the listed order and
+        // required, photographs the pack screen and quits -- see
+        // PackTrial. Needs a display; never part of check.
+        packTrial {
+            client()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/trial')
+            systemProperty 'packkeeper.trial', 'true'
+            jvmArgument '-Xmx6G'
+        }
         configureEach {
             logLevel = org.slf4j.event.Level.DEBUG
         }
@@ -142,7 +157,7 @@ neoForge {
 }
 
 // The gametest mod is for the gametest run and the photo booth only.
-neoForge.runs.matching { it.name != 'photoBooth' }.configureEach {
+neoForge.runs.matching { it.name != 'photoBooth' && it.name != 'packTrial' }.configureEach {
     loadedMods = neoForge.mods.matching { it.name != "${mod_id}_gametest" }
 }
 

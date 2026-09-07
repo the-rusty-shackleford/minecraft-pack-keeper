@@ -49,11 +49,17 @@ import java.util.function.Predicate;
  *
  * <p>The game finds the packs in the resource-packs folder itself and
  * lists them as optional. When it asks mods for more packs, this mod hands
- * it the listed ones again under the same ids, marked <em>required</em>:
- * the later source wins, so each pack appears once, and a required pack
- * is always selected and cannot be switched off. Then it puts the player's
- * saved pack list in order (see {@link Selection#imposedOn}), which the
- * game reads right after. Nothing else in the player's options is touched.
+ * it the listed ones again under the same ids, marked <em>required</em>
+ * and <em>fixed</em>: the later source wins, so each pack appears once; a
+ * required pack is always selected and cannot be switched off; and a fixed
+ * one keeps its place when the game slots in the required packs it finds
+ * missing from the saved list (its own mod resources, for one), which
+ * otherwise land on top of everything. Then it puts the player's saved
+ * pack list in order (see {@link Selection#imposedOn}), which the game
+ * reads right after, and accepts on the player's behalf any listed pack
+ * that says it is for another game version -- the game would otherwise
+ * drop it from the list and put it back on top. Nothing else in the
+ * player's options is touched.
  *
  * <p>Client only: a server has no resource packs to keep.
  */
@@ -94,17 +100,24 @@ public final class PackKeeper {
                 name -> kept.stream().anyMatch(pack -> pack.getId().equals(Selection.id(name))));
         minecraft.options.resourcePacks.clear();
         minecraft.options.resourcePacks.addAll(ordered);
+        for (Pack pack : kept) {
+            if (!pack.getCompatibility().isCompatible()
+                    && !minecraft.options.incompatibleResourcePacks.contains(pack.getId())) {
+                minecraft.options.incompatibleResourcePacks.add(pack.getId());
+                LOG.info("{} says it is for another game version; kept on regardless, as listed", pack.getId());
+            }
+        }
         LOG.info("Keeping {} resource pack(s) on: {}", kept.size(), kept.stream().map(Pack::getId).toList());
     }
 
-    /** The pack at {@code path}, required, under the game's own id for it; null if it is not a pack. */
+    /** The pack at {@code path}, required and fixed, under the game's own id for it; null if it is not a pack. */
     private static Pack keep(Path path, String name) {
         Pack.ResourcesSupplier resources = Files.isDirectory(path)
                 ? new PathPackResources.PathResourcesSupplier(path)
                 : new FilePackResources.FileResourcesSupplier(path);
         PackLocationInfo location = new PackLocationInfo(Selection.id(name), Component.literal(name), KEPT, Optional.empty());
         Pack pack = Pack.readMetaAndCreate(location, resources, PackType.CLIENT_RESOURCES,
-                new PackSelectionConfig(true, Pack.Position.TOP, false));
+                new PackSelectionConfig(true, Pack.Position.TOP, true));
         if (pack == null) {
             LOG.warn("The modpack lists a resource pack that is not one (no pack.mcmeta): {}", path);
         }

@@ -42,7 +42,8 @@ import java.util.List;
  * The check through the real path, on the fixtures the build wrote into
  * {@code run/booth}: the game boots with an {@code options.txt} that has
  * the kept packs in the wrong order and the player's own pack beneath
- * them. At the title screen the booth reads what the game selected, reads
+ * them, and one kept pack declaring an old game version. At the title
+ * screen the booth reads what the game selected, reads
  * the dirt and stone textures back through the resource manager to see
  * which pack painted them, photographs the pack screen, and writes one
  * {@code booth: PASS} or {@code booth: FAIL} line per check to the log,
@@ -56,7 +57,7 @@ public final class PackBooth {
     private static final Logger LOG = LoggerFactory.getLogger("Pack Keeper booth");
     private static final boolean ACTIVE = Boolean.getBoolean("packkeeper.photobooth");
     private static final List<String> EXPECTED = List.of(
-            "vanilla", "mod_resources", "file/keeper-base", "file/keeper-top.zip", "file/mine");
+            "vanilla", "mod_resources", "file/keeper-old", "file/keeper-base", "file/keeper-top.zip", "file/mine");
     private static final int RED = 0xFFFF0000;
     private static final int GREEN = 0xFF00FF00;
 
@@ -102,8 +103,13 @@ public final class PackBooth {
                 top != null && top.isRequired() && base != null && base.isRequired() && mine != null && !mine.isRequired(),
                 "top=" + describe(top) + " base=" + describe(base) + " mine=" + describe(mine));
         verdict("the kept packs are listed once each",
-                repository.getAvailableIds().stream().filter(id -> id.startsWith("file/keeper")).count() == 2,
+                repository.getAvailableIds().stream().filter(id -> id.startsWith("file/keeper")).count() == 3,
                 "available " + repository.getAvailableIds());
+        Pack old = repository.getPack("file/keeper-old");
+        verdict("a kept pack for another game version stays where it is listed",
+                old != null && !old.getCompatibility().isCompatible() && selected.indexOf("file/keeper-old") == 2
+                        && mc.options.incompatibleResourcePacks.contains("file/keeper-old"),
+                "old=" + describe(old) + " at " + selected.indexOf("file/keeper-old") + ", accepted " + mc.options.incompatibleResourcePacks);
         verdict("the absent pack is not selected and not invented",
                 !selected.contains("file/keeper-absent.zip") && repository.getPack("file/keeper-absent.zip") == null,
                 "available " + repository.getAvailableIds());

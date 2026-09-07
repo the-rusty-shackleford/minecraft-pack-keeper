@@ -30,10 +30,13 @@ Three source sets, one direction of dependency:
 - `gametest` -- a mod of its own carrying `PackBooth`, the check through
   the real path: a client boots on fixtures with the wrong order saved and
   asserts what the game selected and rendered. There is no gametest
-  server run: a client-only mod has nothing for it to do.
+  server run: a client-only mod has nothing for it to do. `PackTrial`
+  (`runPackTrial`) does the same on a real modpack laid out in `run/trial`.
 
 Decisions: the packs are re-registered under the game's own `file/` ids,
-required, and the order is imposed on the options list (`D-0001`).
+required, and the order is imposed on the options list (`D-0001`); they
+are fixed in position, and a listed pack for another game version is
+accepted on the player's behalf (`D-0002`).
 
 ## How it is verified
 

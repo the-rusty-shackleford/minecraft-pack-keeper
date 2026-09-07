@@ -1,0 +1,21 @@
+# The gametests are a mod of their own so they can ship a datapack beside the
+# one the main jar ships. Loaded by the gametest run only; never shipped.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="AGPL-3.0-or-later"
+
+[[mods]]
+modId="packkeeper_gametest"
+version="1.0.0"
+displayName="Pack Keeper GameTests"
+authors="Rusty Shackleford"
+description='''
+The gametests and the datapack they run against.
+'''
+
+[[dependencies.packkeeper_gametest]]
+    modId="packkeeper"
+    type="required"
+    versionRange="[1.0,)"
+    ordering="AFTER"
+    side="BOTH"

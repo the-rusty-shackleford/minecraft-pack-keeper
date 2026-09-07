@@ -1,0 +1,230 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.144'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 21 to end users in 1.21.1, so mods must target Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// ModDevGradle registers only the NeoForged and Mojang repositories. JUnit
+// lives on Central.
+repositories {
+    mavenCentral()
+}
+
+// Three layers, one direction of dependency:
+//
+//   domain   <--  main (adapters)  <--  gametest (a real server)
+//     ^
+//     +----  test (plain JUnit; no Minecraft on its classpath at all)
+//
+// `domain` is the pure layer: the decisions this mod makes -- which packs to
+// keep on, in what order, what to say about ones that are missing -- over
+// plain strings and lists. It is compiled against nothing but the JDK, so a
+// `net.minecraft` import there is a compile error rather than something a
+// reviewer has to catch. `gametest` is the only source set besides `main`
+// that receives the modding dependencies; `test` never does.
+sourceSets {
+    domain
+    gametest
+}
+
+// In a dev run SharedConstants.IS_RUNNING_IN_IDE is true, so the structure
+// template manager reads gametest templates from <cwd>/gameteststructures/
+// rather than from a resource pack. The templates are kept under devtools/
+// and copied into place before the run.
+var copyGameTestStructures = tasks.register("copyGameTestStructures", Copy) {
+    from "devtools/gameteststructures"
+    into "run/gameteststructures"
+}
+
+// The world the gametest server leaves behind, as a singleplayer save for
+// the photo booth to quick-play into. Copies nothing until a gametest run
+// has happened.
+// The booth has its own game directory, run/booth: its saves and
+// screenshots stay apart from the test runs', and its mods/ folder holds
+// whatever of the pack should be in the picture (Not Enough Animations and
+// its library, which re-pose the player) -- jars dropped there load, where
+// jars on the classpath are not discovered as mods by a dev launch.
+// The booth's fixtures: three tiny resource packs in run/booth/resourcepacks
+// (two the modpack keeps, one the player added), a packkeeper.json that
+// lists the kept two on top of one that is not there, and an options.txt
+// that has them in the wrong order with the player's underneath. The run
+// then shows whether the mod put things right -- see PackBooth.
+var prepareBooth = tasks.register("prepareBooth") {
+    def booth = layout.projectDirectory.dir('run/booth').asFile
+    outputs.dir booth
+    doLast {
+        def png = { java.awt.Color colour ->
+            def image = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+            def g = image.createGraphics(); g.color = colour; g.fillRect(0, 0, 16, 16); g.dispose()
+            def out = new ByteArrayOutputStream(); javax.imageio.ImageIO.write(image, 'png', out); out.toByteArray()
+        }
+        def mcmeta = { String name -> """{ "pack": { "pack_format": 34, "description": "${name}" } }""" }
+        def folderPack = { String name, String texture, java.awt.Color colour ->
+            def dir = new File(booth, "resourcepacks/${name}/assets/minecraft/textures/block"); dir.mkdirs()
+            new File(dir, "${texture}.png").bytes = png(colour)
+            new File(booth, "resourcepacks/${name}/pack.mcmeta").text = mcmeta(name)
+        }
+        def zipPack = { String name, String texture, java.awt.Color colour ->
+            def file = new File(booth, "resourcepacks/${name}"); file.parentFile.mkdirs()
+            new java.util.zip.ZipOutputStream(new FileOutputStream(file)).withCloseable { zip ->
+                zip.putNextEntry(new java.util.zip.ZipEntry('pack.mcmeta')); zip.write(mcmeta(name).bytes); zip.closeEntry()
+                zip.putNextEntry(new java.util.zip.ZipEntry("assets/minecraft/textures/block/${texture}.png")); zip.write(png(colour)); zip.closeEntry()
+            }
+        }
+        new File(booth, 'resourcepacks').deleteDir()
+        folderPack('keeper-base', 'dirt', java.awt.Color.BLUE)     // under: paints dirt blue
+        zipPack('keeper-top.zip', 'dirt', java.awt.Color.RED)      // on top: paints dirt red, and must win
+        folderPack('mine', 'stone', java.awt.Color.GREEN)          // the player's own, above both
+        new File(booth, 'config').mkdirs()
+        new File(booth, 'config/packkeeper.json').text = '{ "resource_packs": [ "keeper-top.zip", "keeper-base", "keeper-absent.zip" ] }\n'
+        new File(booth, 'options.txt').text = 'resourcePacks:["vanilla","mod_resources","file/mine","file/keeper-top.zip","file/keeper-base"]\n'
+        new File(booth, 'screenshots').deleteDir()
+    }
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        // The client-side check: boots to the title screen on the fixtures
+        // prepareBooth wrote, asserts what the game selected and what it
+        // renders, photographs the pack screen and quits -- see PackBooth in
+        // the gametest source set. Needs a display.
+        photoBooth {
+            client()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/booth')
+            systemProperty 'packkeeper.photobooth', 'true'
+            taskBefore prepareBooth
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.domain)
+            sourceSet(sourceSets.main)
+        }
+        // The gametests are a mod of their own, as in the sibling repos: they
+        // exercise the mod from outside, as a pack would, and carry the photo
+        // booth, which is never shipped.
+        "${mod_id}_gametest" {
+            sourceSet(sourceSets.gametest)
+        }
+    }
+
+    // Deliberately not `domain` and not `test` -- see the layering comment.
+    addModdingDependenciesTo(sourceSets.gametest)
+}
+
+// The gametest mod is for the gametest run and the photo booth only.
+neoForge.runs.matching { it.name != 'photoBooth' }.configureEach {
+    loadedMods = neoForge.mods.matching { it.name != "${mod_id}_gametest" }
+}
+
+dependencies {
+    implementation sourceSets.domain.output
+
+    gametestImplementation sourceSets.main.output
+    gametestImplementation sourceSets.domain.output
+
+    // Plain JUnit 5 against the pure layer only. Gradle 9 no longer injects
+    // the platform launcher, so it is declared.
+    testImplementation sourceSets.domain.output
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.2'
+    testRuntimeOnly    'org.junit.jupiter:junit-jupiter-engine:5.9.2'
+    testRuntimeOnly    'org.junit.platform:junit-platform-launcher:1.9.2'
+}
+
+tasks.named('test', Test) {
+    // Gradle enables -ea for Test tasks by default; the domain layer's rep
+    // invariants are `assert`s and rely on it.
+    useJUnitPlatform()
+}
+
+// The shipped jar is main + domain. gametest is never shipped.
+jar {
+    from sourceSets.domain.output
+}
+
+// A client-only mod has nothing for the gametest server to run: the booth
+// is the check. Its exit code is the game's, not the assertions', so the
+// gate reads the booth's own verdict lines from the log and fails without
+// a PASS or with any FAIL. `check` runs it unless asked not to
+// (`-PskipBooth`, for a box without a display).
+tasks.named('runPhotoBooth') { task ->
+    def logFile = layout.projectDirectory.file('run/booth/logs/latest.log').asFile
+    task.doLast {
+        def text = logFile.exists() ? logFile.text : ''
+        if (text =~ /Missing or unsupported mandatory|Mod loading has failed/) {
+            throw new GradleException("booth: the loader refused a mod; see ${logFile}")
+        }
+        def failures = text.readLines().findAll { it.contains('booth: FAIL') }
+        if (!failures.isEmpty()) {
+            throw new GradleException("booth: ${failures.size()} failed check(s):\n" + failures.join('\n'))
+        }
+        if (!(text =~ /booth: PASS/)) {
+            throw new GradleException("booth: no verdict in ${logFile} -- the booth never ran")
+        }
+        task.logger.lifecycle("booth: " + (text =~ /booth: PASS.*/)[0])
+    }
+}
+if (!project.hasProperty('skipBooth')) {
+    tasks.named('check') {
+        dependsOn 'runPhotoBooth'
+    }
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

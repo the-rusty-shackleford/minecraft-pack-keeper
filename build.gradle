@@ -89,6 +89,15 @@ var prepareBooth = tasks.register("prepareBooth") {
         new File(booth, 'config').mkdirs()
         new File(booth, 'config/packkeeper.json').text = '{ "resource_packs": [ "keeper-top.zip", "keeper-base", "keeper-old", "keeper-absent.zip" ] }\n'
         new File(booth, 'options.txt').text = 'resourcePacks:["vanilla","mod_resources","file/mine","file/keeper-top.zip","file/keeper-base"]\n'
+        // Seeds: one whose target is missing (to be copied), one whose target
+        // the player already has, with their own content (to be left alone).
+        new File(booth, 'config/packkeeper/seed/shaderpacks').mkdirs()
+        new File(booth, 'config/packkeeper/seed/config').mkdirs()
+        new File(booth, 'config/packkeeper/seed/shaderpacks/Booth.zip.txt').text = 'SEEDED=1\n'
+        new File(booth, 'config/packkeeper/seed/config/booth-seeded.properties').text = 'seeded=by the modpack\n'
+        new File(booth, 'shaderpacks').mkdirs()
+        new File(booth, 'shaderpacks/Booth.zip.txt').delete()
+        new File(booth, 'config/booth-seeded.properties').text = 'seeded=no, this is mine\n'
         new File(booth, 'screenshots').deleteDir()
     }
 }

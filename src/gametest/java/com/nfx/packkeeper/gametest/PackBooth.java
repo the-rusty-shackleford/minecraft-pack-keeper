@@ -119,6 +119,19 @@ public final class PackBooth {
                 String.format("stone pixel %08x", pixel(mc, "textures/block/stone.png")));
         verdict("the saved options carry the same order", EXPECTED.equals(mc.options.resourcePacks),
                 "options " + mc.options.resourcePacks);
+        verdict("a seed whose target was missing was put in place",
+                read(mc, "shaderpacks/Booth.zip.txt").equals("SEEDED=1\n"), "read " + read(mc, "shaderpacks/Booth.zip.txt"));
+        verdict("a seed whose target the player already had was left alone",
+                read(mc, "config/booth-seeded.properties").equals("seeded=no, this is mine\n"), "read " + read(mc, "config/booth-seeded.properties"));
+    }
+
+    /** The file's text under the game folder, or the error. */
+    private static String read(Minecraft mc, String path) {
+        try {
+            return java.nio.file.Files.readString(mc.gameDirectory.toPath().resolve(path));
+        } catch (IOException e) {
+            return "<" + e + ">";
+        }
     }
 
     private static String describe(Pack pack) {

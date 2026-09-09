@@ -1,0 +1,12 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.nfx.packkeeper.mixin",
+  "plugin": "com.nfx.packkeeper.mixin.SeedPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

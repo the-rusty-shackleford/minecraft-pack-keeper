@@ -35,12 +35,37 @@ a pack (no `pack.mcmeta`) likewise.
 If the config file is missing the mod writes an empty one and keeps
 nothing on.
 
+### Seeding files a new player should start with
+
+Some files are a player's own from the moment they exist -- shader
+settings, the shader pack they have picked -- and a modpack must never
+ship them under `overrides/`, where every update puts the pack's copy back
+over theirs. Ship them as seeds instead: anything under
+`config/packkeeper/seed/` is copied to the same path under the game folder
+on launch, **only where nothing exists yet**, and never touched again.
+
+```
+config/packkeeper/seed/config/iris.properties
+config/packkeeper/seed/shaderpacks/ComplementaryUnbound_r5.8.1.zip.txt
+```
+
+gives a new player the pack's shader pack switched on with the pack's
+settings, and leaves everyone who already has either exactly as they were.
+Seeding happens at mixin bootstrap, before the game reads its options --
+Iris reads its properties there too -- so it takes effect on the very
+first launch. A path that would land outside the game folder is refused
+and named in the log.
+
 ## For players
 
 Nothing to do. Your other resource packs, and everything else in your
-options, are yours.
+options, are yours. If the modpack seeds a file for you, it happens once,
+and the log says so.
 
 ## How it works
+
+The seeding is a mixin config with no mixins in it: its plugin is the
+earliest hook a mod gets, and `Seeder` runs from its `onLoad`.
 
 The game discovers the packs in `resourcepacks/` itself and lists them as
 optional. When it asks mods for more packs, Pack Keeper hands it the
@@ -57,10 +82,11 @@ Java 21. `./gradlew build` produces `build/libs/packkeeper-<version>.jar`.
 
 `./gradlew check` runs the plain-JUnit tests against the pure layer and
 the booth: a real client boots on generated fixtures -- two kept packs and
-one of the player's own, a saved list in the wrong order -- and asserts
+one of the player's own, a saved list in the wrong order, a seed whose
+target is missing and one whose target is the player's -- and asserts
 what the game selected, that the top kept pack is what paints the dirt
-texture, that the player's pack stays on top, and that the kept packs
-appear once. It needs a display; `-PskipBooth` leaves it out. The booth's
+texture, that the player's pack stays on top, that the kept packs appear
+once, and that only the missing seed was put in place. It needs a display; `-PskipBooth` leaves it out. The booth's
 photo of the pack screen lands in `run/booth/screenshots/`.
 
 `./gradlew runPackTrial` boots whatever is laid out in `run/trial` (a real

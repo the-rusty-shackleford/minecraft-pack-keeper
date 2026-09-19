@@ -59,7 +59,8 @@ import java.util.function.Predicate;
  * reads right after, and accepts on the player's behalf any listed pack
  * that says it is for another game version -- the game would otherwise
  * drop it from the list and put it back on top. Nothing else in the
- * player's options is touched.
+ * player's options is touched by resource-pack selection. The separate optional
+ * bootstrap update can change the two distance options once.
  *
  * <p>Client only: a server has no resource packs to keep.
  */

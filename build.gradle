@@ -62,6 +62,7 @@ var copyGameTestStructures = tasks.register("copyGameTestStructures", Copy) {
 var prepareBooth = tasks.register("prepareBooth") {
     def booth = layout.projectDirectory.dir('run/booth').asFile
     outputs.dir booth
+    outputs.upToDateWhen { false }
     doLast {
         def png = { java.awt.Color colour ->
             def image = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB)
@@ -87,8 +88,9 @@ var prepareBooth = tasks.register("prepareBooth") {
         zipPack('keeper-top.zip', 'dirt', java.awt.Color.RED)      // on top: paints dirt red, and must win
         folderPack('mine', 'stone', java.awt.Color.GREEN)          // the player's own, above both
         new File(booth, 'config').mkdirs()
-        new File(booth, 'config/packkeeper.json').text = '{ "resource_packs": [ "keeper-top.zip", "keeper-base", "keeper-old", "keeper-absent.zip" ] }\n'
-        new File(booth, 'options.txt').text = 'resourcePacks:["vanilla","mod_resources","file/mine","file/keeper-top.zip","file/keeper-base"]\n'
+        new File(booth, 'config/packkeeper.json').text = '{ "resource_packs": [ "keeper-top.zip", "keeper-base", "keeper-old", "keeper-absent.zip" ], "options_update": { "id": "booth-visibility-1", "render_distance": 24, "entity_distance_scaling": 2.0 } }\n'
+        new File(booth, 'config/packkeeper/applied-options').deleteDir()
+        new File(booth, 'options.txt').text = 'version:3955\nresourcePacks:["vanilla","mod_resources","file/mine","file/keeper-top.zip","file/keeper-base"]\nrenderDistance:12\nentityDistanceScaling:1.0\nsoundCategory_master:0.0\nsoundCategory_music:0.37\ngamma:0.73\nkey_key.jump:key.keyboard.j\n'
         // Seeds: one whose target is missing (to be copied), one whose target
         // the player already has, with their own content (to be left alone).
         new File(booth, 'config/packkeeper/seed/shaderpacks').mkdirs()
@@ -129,6 +131,13 @@ neoForge {
             systemProperty 'packkeeper.photobooth', 'true'
             taskBefore prepareBooth
         }
+        optionsRelaunch {
+            client()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/booth')
+            systemProperty 'packkeeper.photobooth', 'true'
+            systemProperty 'packkeeper.relaunch', 'true'
+        }
         // A real modpack's trial: lay a pack's mods, config and resource
         // packs out in run/trial as a launcher would (without this mod's
         // own jar -- the classpath provides it), and the run boots the
@@ -166,7 +175,7 @@ neoForge {
 }
 
 // The gametest mod is for the gametest run and the photo booth only.
-neoForge.runs.matching { it.name != 'photoBooth' && it.name != 'packTrial' }.configureEach {
+neoForge.runs.matching { it.name != 'photoBooth' && it.name != 'optionsRelaunch' && it.name != 'packTrial' }.configureEach {
     loadedMods = neoForge.mods.matching { it.name != "${mod_id}_gametest" }
 }
 
@@ -200,7 +209,7 @@ jar {
 // gate reads the booth's own verdict lines from the log and fails without
 // a PASS or with any FAIL. `check` runs it unless asked not to
 // (`-PskipBooth`, for a box without a display).
-tasks.named('runPhotoBooth') { task ->
+tasks.matching { it.name in ['runPhotoBooth', 'runOptionsRelaunch'] }.configureEach { task ->
     def logFile = layout.projectDirectory.file('run/booth/logs/latest.log').asFile
     task.doLast {
         def text = logFile.exists() ? logFile.text : ''
@@ -217,9 +226,12 @@ tasks.named('runPhotoBooth') { task ->
         task.logger.lifecycle("booth: " + (text =~ /booth: PASS.*/)[0])
     }
 }
+tasks.named('runOptionsRelaunch') {
+    dependsOn 'runPhotoBooth'
+}
 if (!project.hasProperty('skipBooth')) {
     tasks.named('check') {
-        dependsOn 'runPhotoBooth'
+        dependsOn 'runOptionsRelaunch'
     }
 }
 

@@ -12,9 +12,9 @@ displayTest="IGNORE_ALL_VERSION"
 description='''
 Keeps a modpack's resource packs switched on, in the pack's order, from a
 list in the pack's config -- so the pack never has to ship anyone's
-options.txt, and nobody's settings are overwritten on an update -- and seeds
-the files a new player should start with, shader settings among them, only
-where they have none yet.
+options.txt. Seeds files a new player should start with only where missing.
+Optionally applies a named render-distance and entity-distance update once,
+preserving other preferences and players' later adjustments.
 '''
 
 # No mixins: the config exists for its plugin, the earliest hook a mod gets,

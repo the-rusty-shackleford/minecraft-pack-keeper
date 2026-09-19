@@ -18,6 +18,7 @@
 package com.nfx.packkeeper.mixin;
 
 import com.nfx.packkeeper.Seeder;
+import com.nfx.packkeeper.ClientOptionsUpdater;
 import java.util.List;
 import java.util.Set;
 import net.neoforged.fml.loading.FMLEnvironment;
@@ -49,6 +50,7 @@ public final class SeedPlugin implements IMixinConfigPlugin {
         } catch (RuntimeException e) {
             LOG.error("Seeding the modpack's files failed; going on without", e);
         }
+        ClientOptionsUpdater.apply(FMLPaths.GAMEDIR.get());
     }
 
     @Override

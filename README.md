@@ -3,8 +3,8 @@
 A client-only [NeoForge](https://neoforged.net/) 1.21.1 mod that keeps a
 modpack's resource packs switched on, in the modpack's order, from a list
 in the modpack's config. The modpack never has to ship anyone's
-`options.txt`, so an update never overwrites a player's keybinds, video
-settings or sound levels.
+`options.txt`. An optional named update can set just render distance and entity
+distance once, preserving keybinds, sound levels and every unrelated option.
 
 ## For modpack authors
 
@@ -56,11 +56,45 @@ Iris reads its properties there too -- so it takes effect on the very
 first launch. A path that would land outside the game folder is refused
 and named in the log.
 
+### Updating the two distance settings once
+
+Pack Keeper 1.2.0 also accepts this optional section in `config/packkeeper.json`,
+alongside `resource_packs`:
+
+```json
+{
+  "options_update": {
+    "id": "server-visibility-2026-09",
+    "render_distance": 24,
+    "entity_distance_scaling": 2.0
+  }
+}
+```
+
+On the first launch with that id, existing and new players receive 24-chunk
+render distance and 200% Entity Distance Scaling. Only those two keys change.
+The update runs before Minecraft reads options, so it takes effect immediately.
+Players can change either value afterward; subsequent launches and pack updates
+with the same id preserve their choices. Changing values under the same id does
+not reapply them. Use a new id only for an explicitly intended new migration.
+
+The original options, when present, and a completion receipt remain under
+`config/packkeeper/applied-options/<id>/`. Never ship this personal directory in
+pack overrides. An interrupted attempt is logged and never automatically replayed
+over later preferences. For manual recovery, close Minecraft, inspect the original
+backup and current options, and remove that id's receipt directory only if retrying
+the two-setting update is intended.
+
+These are client drawing settings. The dedicated server still controls simulation
+distance and which chunks and entities it sends. At 24 chunks, player visibility
+is capped at roughly 384 horizontal blocks even with 200% entity scaling. Other
+entities can benefit from the larger client draw range, within server limits.
+
 ## For players
 
-Nothing to do. Your other resource packs, and everything else in your
-options, are yours. If the modpack seeds a file for you, it happens once,
-and the log says so.
+Your other resource packs and personal settings remain yours. If the modpack
+includes a named distance update, those two values change once, then remain yours
+to adjust. Seed files are copied only when missing. The log records both actions.
 
 ## How it works
 
@@ -86,7 +120,11 @@ one of the player's own, a saved list in the wrong order, a seed whose
 target is missing and one whose target is the player's -- and asserts
 what the game selected, that the top kept pack is what paints the dirt
 texture, that the player's pack stays on top, that the kept packs appear
-once, and that only the missing seed was put in place. It needs a display; `-PskipBooth` leaves it out. The booth's
+once, and that only the missing seed was put in place. It checks the distance
+update and preservation of volume, brightness and a custom keybind. A second
+real client launch verifies that later player changes survive. Both launches
+use master volume zero and quit automatically. It needs a display;
+`-PskipBooth` leaves these client runs out. The booth's
 photo of the pack screen lands in `run/booth/screenshots/`.
 
 `./gradlew runPackTrial` boots whatever is laid out in `run/trial` (a real

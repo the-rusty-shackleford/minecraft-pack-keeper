@@ -23,6 +23,7 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.packs.PackSelectionScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackRepository;
 import net.neoforged.api.distmarker.Dist;
@@ -56,6 +57,7 @@ public final class PackBooth {
 
     private static final Logger LOG = LoggerFactory.getLogger("Pack Keeper booth");
     private static final boolean ACTIVE = Boolean.getBoolean("packkeeper.photobooth");
+    private static final boolean RELAUNCH = Boolean.getBoolean("packkeeper.relaunch");
     private static final List<String> EXPECTED = List.of(
             "vanilla", "mod_resources", "file/keeper-old", "file/keeper-base", "file/keeper-top.zip", "file/mine");
     private static final int RED = 0xFFFF0000;
@@ -87,11 +89,32 @@ public final class PackBooth {
                     message -> LOG.info("booth: {}", message.getString()));
         }
         if (tick == 30) {
+            if (!RELAUNCH) {
+                // A real player's later adjustment, saved through Minecraft itself.
+                mc.options.renderDistance().set(10);
+                mc.options.entityDistanceScaling().set(0.75);
+                mc.options.save();
+            }
             mc.stop();
         }
     }
 
     private static void check(Minecraft mc) {
+        verdict(RELAUNCH ? "relaunch keeps the player's later distance choices" : "first launch loads the one-time distance update",
+                mc.options.renderDistance().get() == (RELAUNCH ? 10 : 24)
+                        && mc.options.entityDistanceScaling().get() == (RELAUNCH ? 0.75 : 2.0),
+                "render=" + mc.options.renderDistance().get() + " entity=" + mc.options.entityDistanceScaling().get());
+        verdict("unrelated volume, brightness and keybind preferences survive",
+                mc.options.getSoundSourceVolume(SoundSource.MASTER) == 0.0f
+                        && Math.abs(mc.options.getSoundSourceVolume(SoundSource.MUSIC) - 0.37f) < 0.0001f
+                        && mc.options.gamma().get() == 0.73
+                        && mc.options.keyJump.saveString().equals("key.keyboard.j"),
+                "master=" + mc.options.getSoundSourceVolume(SoundSource.MASTER)
+                        + " music=" + mc.options.getSoundSourceVolume(SoundSource.MUSIC)
+                        + " gamma=" + mc.options.gamma().get() + " jump=" + mc.options.keyJump.saveString());
+        verdict("the original options backup is retained across launches",
+                read(mc, "config/packkeeper/applied-options/booth-visibility-1/options.before.txt").contains("renderDistance:12\nentityDistanceScaling:1.0"),
+                "original values are backed up");
         PackRepository repository = mc.getResourcePackRepository();
         List<String> selected = List.copyOf(repository.getSelectedIds());
         verdict("the selection is the kept packs in the modpack's order with the player's own on top",
